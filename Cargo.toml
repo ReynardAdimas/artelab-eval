@@ -1,0 +1,9 @@
+[package]
+name = "artelab-eval"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+opencv = { version = "0.100.1", default-features =  false, features = ["imgproc", "imgcodecs", "highgui", "videoio", "objdetect", "barcode", "wechat_qrcode"] }
+rxing = "0.9.3"
+barcode-scanner-rs = { path = "../barcode-scanner-rs" }
