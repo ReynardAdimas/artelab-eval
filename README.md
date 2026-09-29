@@ -1,4 +1,5 @@
 References Benchmark : https://www.dynamsoft.com/codepool/barcode-scanning-accuracy-benchmark-and-comparison.html 
+
 Dataset : 	Artelab Medium Barcode 1D Collection 
 
 **Combination Tested**
