@@ -25,7 +25,9 @@ pub struct Sample {
 } 
 
 fn read_txt(image_path: &Path) -> Option<String> {
-    let txt_path = image_path.with_extension(".jpg.txt"); 
+    let mut txt_path = image_path.as_os_str().to_os_string();
+    txt_path.push(".txt");
+    let txt_path = Path::new(&txt_path); 
     let content = fs::read_to_string(txt_path).ok()?;
     let trimmed = content.trim().to_string();
     if trimmed.is_empty() {
