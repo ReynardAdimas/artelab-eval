@@ -7,7 +7,7 @@ use barcode_scanner_rs::{
 use std::{collections::BTreeMap, path::PathBuf, time::Instant};
 
 mod ground_truth;
-use ground_truth::{load_all, SubDataset}; 
+use ground_truth::{load_all, SubDataset, load_muenster, load_deal_kaist}; 
 mod localized_rxing;
 use localized_rxing::LocalizedRxingDetector;
 
@@ -75,7 +75,7 @@ fn build_decoder(kind: &DecoderKind) -> Result<Box<dyn BarcodeDetector>, String>
 
 fn main() -> Result<(), String>{
     let data_root = PathBuf::from(std::env::args().nth(1).unwrap_or_else(|| "data".to_string())); 
-    let samples = load_all(&data_root)?; 
+    let samples = load_deal_kaist(&data_root)?; 
 
     let combos: Vec<(&str, PreprocessKind, DecoderKind)> = vec![
         ("raw+localize+rxing", PreprocessKind::Raw, DecoderKind::LocalizedRxing { local_otsu: false }),

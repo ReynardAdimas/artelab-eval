@@ -1,6 +1,5 @@
 References Benchmark : https://www.dynamsoft.com/codepool/barcode-scanning-accuracy-benchmark-and-comparison.html 
 
-Dataset : 	Artelab Medium Barcode 1D Collection 
 
 **Combination Tested**
 | Label | Preprocessing | Decoder |
@@ -8,6 +7,8 @@ Dataset : 	Artelab Medium Barcode 1D Collection
 | `gray+localize+rxing` | grayscale, decoder crops internally | localizing -> crop -> rxing |
 | `gray+localize_otsu+rxing` | grayscale, decoder crops internally | localize -> crop -> Otsu on crop -> rxing |
 | `raw+localize_otsu+rxing` | none, decoder crops internally | localizing -> crop -> rxing |
+
+## Dataset : 	Artelab Medium Barcode 1D Collection 
 
 **Result so far:**
 | sub-dataset | combo | n | reading_rate | precision | err% | p50 (ms) | p95 (ms) |
@@ -27,4 +28,24 @@ Dataset : 	Artelab Medium Barcode 1D Collection
 | Scandit | 91.63% | 79.07% |
 | **ZXing-CPP** | **82.36%** | **10.23%** |
 | pyZbar | 89.77% | 13.95% |
-| **raw+localize+rxing** | **96.74%** | **40.00%** |
+| **raw+localize+rxing** | **96.74%** | **40.00%** | 
+
+
+## Dataset : 	Artelab Medium Barcode 1D Collection 
+
+**Result so far:**
+| sub-dataset | combo | n | reading_rate | precision | err% | p50 (ms) | p95 (ms) |
+|---|---|---:|---:|---:|---:|---:|---:|
+| muenster | gray+localize+rxing | 215 | 88.53% | 94.40% | 0.0% | 213.30 | 539.27 |
+| muenster | gray+localize_otsu+rxing | 215 | 87.96% | 94.16% | 0.0% | 216.0 | 554.90 |
+| muenster | raw+localize+rxing | 215 | 88.34% | 94.77% | 0.0% | 220.71 | 517.58 |
+
+### Comparison against the published benchmark (same dataset)
+ 
+| SDK | Reading rate | Precision |
+|---|---:|---:|
+| Dynamsoft Barcode Reader | 96.96% | 100% |
+| Scandit | 93.26% | 100% |
+| **ZXing-CPP** | **75.14%** | **99.87%** |
+| pyZbar | 70.59% | 95.63% |
+| **gray+localize+rxing** | **88.53%** | **94.40%** | 
