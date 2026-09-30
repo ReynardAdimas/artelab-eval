@@ -5,22 +5,19 @@ Dataset : 	Artelab Medium Barcode 1D Collection
 **Combination Tested**
 | Label | Preprocessing | Decoder |
 |---|---|---|
-| `raw+rxing` | none | rxing alone |
-| `gray+rxing` | grayscale only | rxing alone |
-| `gray_otsu+rxing` | grayscale + global Otsu threshold | rxing alone |
-| `gray_otsu+hybrid` | grayscale + global Otsu threshold | fallback chain: StandardQr → WeChat → rxing |
+| `gray+localize+rxing` | grayscale, decoder crops internally | localizing -> crop -> rxing |
+| `gray+localize_otsu+rxing` | grayscale, decoder crops internally | localize -> crop -> Otsu on crop -> rxing |
+| `raw+localize_otsu+rxing` | none, decoder crops internally | localizing -> crop -> rxing |
 
 **Result so far:**
 | sub-dataset | combo | n | reading_rate | precision | err% | p50 (ms) | p95 (ms) |
 |---|---|---:|---:|---:|---:|---:|---:|
-| autofocus | gray+rxing | 215 | 86.05% | 89.37% | 0.0% | 1.17 | 2.52 |
-| autofocus | gray_otsu+hybrid | 215 | 77.21% | 90.22% | 0.0% | 1.36 | 3.34 |
-| autofocus | gray_otsu+rxing | 215 | 77.21% | 90.22% | 0.0% | 0.90 | 2.12 |
-| autofocus | raw+rxing | 215 | 86.05% | 89.37% | 0.0% | 1.19 | 2.79 |
-| no_autofocus | gray+rxing | 215 | 11.16% | 64.86% | 0.0% | 0.09 | 0.68 |
-| no_autofocus | gray_otsu+hybrid | 215 | 9.77% | 70.00% | 0.0% | 0.19 | 0.85 |
-| no_autofocus | gray_otsu+rxing | 215 | 9.77% | 70.00% | 0.0% | 0.09 | 0.62 |
-| no_autofocus | raw+rxing | 215 | 11.16% | 64.86% | 0.0% | 0.12 | 0.83 | 
+| autofocus | gray+localize+rxing | 215 | 96.28% | 95.95% | 0.0% | 1402.61 | 3683.74 |
+| autofocus | gray+localize_otsu+rxing | 215 | 96.74% | 96.46% | 0.0% | 1836.92 | 5470.56 |
+| autofocus | raw+localize+rxing | 215 | 96.74% | 96.00% | 0.0% | 1440.72 | 3864.38 |
+| no_autofocus | gray+localize+rxing | 215 | 39.53% | 87.63% | 0.0% | 213.97 | 540.86 |
+| no_autofocus | gray+localize_otsu+rxing | 215 | 27.91% | 76.92% | 0.0% | 273.87 | 689.03 |
+| no_autofocus | raw+localize+rxing | 215 | 40.00% | 86.87% | 0.0% | 203.65 | 492.11 | 
 
 ### Comparison against the published benchmark (same dataset)
  
@@ -30,4 +27,4 @@ Dataset : 	Artelab Medium Barcode 1D Collection
 | Scandit | 91.63% | 79.07% |
 | **ZXing-CPP** | **82.36%** | **10.23%** |
 | pyZbar | 89.77% | 13.95% |
-| **`gray+rxing` (this project)** | **86.05%** | **11.16%** |
+| **raw+localize+rxing** | **96.74%** | **40.00%** |

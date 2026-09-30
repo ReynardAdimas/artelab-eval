@@ -2,34 +2,44 @@ use barcode_scanner_rs::{
     detector::{BarcodeDetector, PipelineDetector, RxingDetector, StandardQrDetector, WeChatDetector},
     model::ModelPaths, 
     preprocess::{PreprocessKind, Preprocessor}
-}; 
+};
+// use opencv::core::MatExprResult::Ok; 
 use std::{collections::BTreeMap, path::PathBuf, time::Instant};
 
 mod ground_truth;
 use ground_truth::{load_all, SubDataset}; 
+mod localized_rxing;
+use localized_rxing::LocalizedRxingDetector;
 
 fn normalize(s: &str) -> String {
     s.chars().filter(|c| c.is_ascii_digit()).collect()
 }
 
+enum DecoderKind {
+    LocalizedRxing { local_otsu: bool }
+} 
+
+
+
 #[derive(Default)]
 struct Stat {
     n: usize, 
     total_returned: usize, 
-    total_correct: usize, 
+    correct_returns: usize,
+    correct_barcodes: usize,
     err: usize, 
     ms: Vec<f64>
 } 
 
 impl Stat {
     fn reading_rate(&self) -> f64 {
-        100.0 * self.total_correct as f64 / self.n as f64
+        100.0 * self.correct_barcodes as f64 / self.n as f64
     } 
     fn precision(&self) -> f64 {
         if self.total_returned == 0 {
             return f64::NAN;
         }
-        100.0 * self.total_correct as f64 / self.total_returned as f64
+        100.0 * self.correct_returns as f64 / self.total_returned as f64
     }
 }
 
@@ -55,43 +65,36 @@ fn matches(expected: &str, got: &str) -> bool {
     false
 }
 
+fn build_decoder(kind: &DecoderKind) -> Result<Box<dyn BarcodeDetector>, String> {
+    Ok(match kind {
+        DecoderKind::LocalizedRxing { local_otsu } => {
+            Box::new(LocalizedRxingDetector::new(2.0, 0.15, *local_otsu)?)
+        }
+    })
+}
+
 fn main() -> Result<(), String>{
     let data_root = PathBuf::from(std::env::args().nth(1).unwrap_or_else(|| "data".to_string())); 
     let samples = load_all(&data_root)?; 
 
-    let combos: Vec<(&str, PreprocessKind, bool)> = vec![
-        ("raw+rxing", PreprocessKind::Raw, false),
-        ("gray+rxing", PreprocessKind::Gray, false),
-        ("gray_otsu+rxing", PreprocessKind::GrayOtsu, false),
-        ("gray_otsu+hybrid", PreprocessKind::GrayOtsu, true),
+    let combos: Vec<(&str, PreprocessKind, DecoderKind)> = vec![
+        ("raw+localize+rxing", PreprocessKind::Raw, DecoderKind::LocalizedRxing { local_otsu: false }),
+        ("gray+localize+rxing", PreprocessKind::Gray, DecoderKind::LocalizedRxing { local_otsu: false }),
+        ("gray+localize_otsu+rxing", PreprocessKind::Gray, DecoderKind::LocalizedRxing { local_otsu: true }),
     ]; 
 
     let mut stats: BTreeMap<(SubDataset, &str), Stat> = BTreeMap::new(); 
 
-    for (label, kind, use_hybrid) in &combos {
+    for (label, kind, decoder_kind) in &combos {
         let mut pre = Preprocessor::new(*kind)?;
-
-        let mut hybrid: Option<PipelineDetector> = if *use_hybrid {
-            Some(PipelineDetector::new(vec![
-                Box::new(StandardQrDetector::new()?), 
-                Box::new(WeChatDetector::new(&ModelPaths::wechat_default())?), 
-                Box::new(RxingDetector::new())
-            ]))
-        } else {
-            None
-        }; 
-
-        let mut rxing_only = RxingDetector::new(); 
-        let total = samples.len();
+        let mut decoder  = build_decoder(decoder_kind)?;
+        let total  = samples.len();
 
         for (idx,s) in samples.iter().enumerate() {
             let img = pre.run(&s.img)?;
             let t0 = Instant::now(); 
-            let res = match &mut hybrid {
-                Some(h) => h.detect(&img), 
-                None => rxing_only.detect(&img)
-            }; 
-            let dt = t0.elapsed().as_secs_f64(); 
+            let res = decoder.detect(&img);
+            let dt = t0.elapsed().as_secs_f64() * 1000.0; 
 
             let key = (s.sub, *label); 
             let st = stats.entry(key).or_default();
@@ -112,6 +115,7 @@ fn main() -> Result<(), String>{
             match res {
                 Err(_) => st.err += 1, 
                 Ok(r) => {
+                    let mut image_correct = false;
                     for d in r.iter() {
                         let g = normalize(&d.data); 
                         if g.is_empty() {
@@ -119,8 +123,12 @@ fn main() -> Result<(), String>{
                         }
                         st.total_returned += 1;
                         if matches(&s.expected, &d.data) {
-                            st.total_correct += 1;
+                            st.correct_returns += 1;
+                            image_correct = true;
                         }
+                    }
+                    if image_correct {
+                        st.correct_barcodes += 1;
                     }
                 }
             }
