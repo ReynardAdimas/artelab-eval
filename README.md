@@ -22,13 +22,13 @@ References Benchmark : https://www.dynamsoft.com/codepool/barcode-scanning-accur
 
 ### Comparison against the published benchmark (same dataset)
  
-| SDK | Autofocus reading rate | No-autofocus reading rate |
-|---|---:|---:|
-| Dynamsoft Barcode Reader | 100% | 81.86% |
-| Scandit | 91.63% | 79.07% |
-| **ZXing-CPP** | **82.36%** | **10.23%** |
-| pyZbar | 89.77% | 13.95% |
-| **raw+localize+rxing** | **96.74%** | **40.00%** | 
+| SDK | Autofocus reading rate | Autofocus precision | No-autofocus reading rate | No-autofocus precision | 
+|---|---:|---:|---:|---:|
+| Dynamsoft Barcode Reader | 100% | 100% | 81.86% | 100% |
+| Scandit | 91.63% | 100%% | 79.07% | 100%
+| **ZXing-CPP** | **82.36%** | **99.44%** | **10.23%** | **91.67%** |
+| pyZbar | 89.77% | 99.48% | 13.95% | 78.95% |
+| **raw+localize+rxing** | **96.74%** | **96.00%** | **40.00%** | **86.87%** | 
 
 
 ## Dataset : 	Muenster BarcodeDB  
