@@ -3,11 +3,10 @@ use barcode_scanner_rs::{
     model::ModelPaths, 
     preprocess::{PreprocessKind, Preprocessor}
 };
-// use opencv::core::MatExprResult::Ok; 
 use std::{collections::BTreeMap, path::PathBuf, time::Instant};
 
 mod ground_truth;
-use ground_truth::{load_all, SubDataset, load_muenster, load_deal_kaist}; 
+use ground_truth::{load_all, SubDataset, load_muenster, load_deal_kaist, }; 
 mod localized_rxing;
 use localized_rxing::LocalizedRxingDetector;
 
@@ -90,8 +89,19 @@ fn main() -> Result<(), String>{
         let mut decoder  = build_decoder(decoder_kind)?;
         let total  = samples.len();
 
+
         for (idx,s) in samples.iter().enumerate() {
-            let img = pre.run(&s.img)?;
+            let raw = match s.load_image() {
+                Ok(m) => m, 
+                Err(e) => {
+                    let st = stats.entry((s.sub, *label)).or_default();
+                    st.n += 1; 
+                    st.err += 1;
+                    continue;
+                }
+            }; 
+            //let img = pre.run(&s.img)?;
+            let img = pre.run(&raw)?;
             let t0 = Instant::now(); 
             let res = decoder.detect(&img);
             let dt = t0.elapsed().as_secs_f64() * 1000.0; 

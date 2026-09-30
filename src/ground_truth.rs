@@ -1,6 +1,6 @@
 use barcode_scanner_rs::utils::cv_err; 
 use opencv::{core::Mat, prelude::*, imgcodecs};
-use std::{fs, path::Path}; 
+use std::{fs, path::{Path, PathBuf}}; 
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum SubDataset {
@@ -25,8 +25,20 @@ pub struct Sample {
     pub file: String, 
     pub sub : SubDataset, 
     pub expected: String, 
-    pub img: Mat
+    // pub img: Mat, 
+    pub path: PathBuf
 } 
+
+impl Sample {
+    pub fn load_image(&self) -> Result<Mat, String> {
+        let img = imgcodecs::imread(self.path.to_str().unwrap(), imgcodecs::IMREAD_COLOR)
+            .map_err(cv_err)?; 
+        if img.empty() {
+            return Err(format!("empty image: {}", self.file));
+        }
+        Ok(img)
+    }
+}
 
 type LabelFn = fn(&Path) -> Option<String>;
 
@@ -75,7 +87,7 @@ fn load_folder(root: &Path, sub: SubDataset, label_fn: LabelFn) -> Result<Vec<Sa
             eprintln!("Skipping {name} because the image is empty");
             continue;
         }
-        out.push(Sample { file: name, sub, expected, img });
+        out.push(Sample { file: name, sub, expected, path: path.clone() });
     }
 
     if out.is_empty() {
