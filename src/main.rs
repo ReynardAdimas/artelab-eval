@@ -87,10 +87,9 @@ fn build_decoder(kind: &DecoderKind) -> Result<LocalizedRxingDetector, String> {
     }
 }
 
-/// Pemakaian:
 ///   cargo run --release -- <data_root> [dataset] [filter]
 ///   dataset : deal (default) | artelab | muenster
-///   filter  : substring label combo, mis. "soros" untuk hanya menjalankan combo Sörös
+///   filter  : soros
 fn main() -> Result<(), String> {
     let args: Vec<String> = std::env::args().collect();
     let data_root = PathBuf::from(args.get(1).map(String::as_str).unwrap_or("data"));
@@ -99,6 +98,16 @@ fn main() -> Result<(), String> {
 
     let samples = match dataset {
         "artelab" => load_all(&data_root)?,
+        "artelab_noaf" => {
+            let mut s = load_all(&data_root)?;
+            s.retain(|x| matches!(x.sub, SubDataset::NoAutoFocus));
+            s
+        }
+        "artelab_af" => {
+            let mut s = load_all(&data_root)?; 
+            s.retain(|x| matches!(x.sub, SubDataset::AutoFocus));
+            s
+        }
         "muenster" => load_muenster(&data_root)?,
         _ => load_deal_kaist(&data_root)?,
     };

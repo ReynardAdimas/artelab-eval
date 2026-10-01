@@ -159,10 +159,24 @@ impl Localizer for SorosLocalizer {
         let mut out = Vec::new();
         let mut global_max = 0.0f64;
 
+        let dbg_dir = std::env::var("SOROS_DEBUG_DIR").ok(); 
+        let mut vis = Mat::default(); 
+        if dbg_dir.is_some() {
+            if small.channels() == 1 {
+                imgproc::cvt_color_def(&small, &mut vis, imgproc::COLOR_GRAY2BGR).map_err(cv_err)?;
+            } else {
+                vis = small.try_clone().map_err(cv_err)?;
+            }
+        }
+
         for k in 0..self.cfg.top_k {
             let (mut mx, mut loc) = (0.0f64, Point::default());
+
             core::min_max_loc(&s1, None, Some(&mut mx), None, Some(&mut loc), &core::no_array())
                 .map_err(cv_err)?;
+            if std::env::var("SOROS_DEBUG").is_ok() {
+                eprintln!("[soros] k={k} mx={mx:.4} loc=({}, {}) small=({}x{})", loc.x, loc.y, small.cols(), small.rows());
+            }
             if k == 0 {
                 global_max = mx;
                 if mx < self.cfg.min_peak as f64 { break; } // tidak ada kode -> fallback
@@ -183,7 +197,12 @@ impl Localizer for SorosLocalizer {
             core::in_range(&labels, &Scalar::all(l), &Scalar::all(l), &mut comp).map_err(cv_err)?;
 
             // hapus komponen dari s1 agar iterasi berikutnya mencari kandidat lain
-            s1.set_to(&Scalar::all(0.0), &comp).map_err(cv_err)?;
+            s1.set_to(&Scalar::all(0.0), &comp).map_err(cv_err)?; 
+
+            if std::env::var("SOROS_DEBUG").is_ok() {
+                eprintln!("[soros] comp_area={} min_area={min_area:.0}",
+                core::count_non_zero(&comp).unwrap_or(-1));
+            }
 
             if (core::count_non_zero(&comp).map_err(cv_err)? as f64) < min_area { continue; }
 
@@ -200,10 +219,24 @@ impl Localizer for SorosLocalizer {
             }) else { continue };
 
             let rect = imgproc::min_area_rect(&best).map_err(cv_err)?;
-            let mut bp: Vector<Point2f> = Vector::new();
+            let mut bp = Mat::default();
             imgproc::box_points(rect, &mut bp).map_err(cv_err)?;
-            if bp.len() != 4 { continue; }
-            let p = [bp.get(0).unwrap(), bp.get(1).unwrap(), bp.get(2).unwrap(), bp.get(3).unwrap()];
+            let v = bp.data_typed::<f32>().map_err(cv_err)?;
+            if v.len() != 8 { continue; }
+            let p = [Point2f::new(v[0], v[1]), Point2f::new(v[2], v[3]), Point2f::new(v[4], v[5]), Point2f::new(v[6], v[7])];
+            if dbg_dir.is_some() {
+                let color = match k {
+                    0 => Scalar::new(0.0, 0.0, 255.0, 0.0), // k0
+                    1 => Scalar::new(0.0, 255.0, 0.0, 0.0), // k1
+                    _ => Scalar::new(255.0, 0.0, 0.0,0.0) // k2
+                };
+                for i in 0..4 {
+                    let a = Point::new(p[i].x as i32, p[i].y as i32); 
+                    let b = Point::new(p[(i+1) % 4].x as i32, p[(i+1) % 4].y as i32);
+                    imgproc::line(&mut vis, a, b, Scalar::new(0.0,0.0, 255.0, 0.0), 2, imgproc::LINE_8, 0).map_err(cv_err)?;
+                }
+                imgproc::put_text(&mut vis, &format!("k{k} {mx:.2}"), Point::new(p[0].x as i32, p[0].y as i32), imgproc::FONT_HERSHEY_SIMPLEX, 0.6, color, 2, imgproc::LINE_8, false).map_err(cv_err)?;
+            }
 
             // orientasi dari structure matrix (rata-rata di komponen)
             let cxx = core::mean(&maps.cxx, &comp).map_err(cv_err)?[0];
@@ -221,6 +254,16 @@ impl Localizer for SorosLocalizer {
                 Point2f::new(q[3].x * inv, q[3].y * inv),
             ]);
         }
+
+        if let Some(dir) = dbg_dir {
+            use std::sync::atomic::{AtomicUsize, Ordering}; 
+            static N: AtomicUsize = AtomicUsize::new(0); 
+            let n = N.fetch_add(1, Ordering::Relaxed);
+            if n < 15 {
+                std::fs::create_dir_all(&dir).ok(); 
+                opencv::imgcodecs::imwrite(&format!("{dir}/soros_{n:03}.png"), &vis, &core::Vector::new()).map_err(cv_err)?;
+            }
+        } 
         Ok(out)
     }
 }
