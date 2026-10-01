@@ -93,7 +93,7 @@ fn main() -> Result<(), String>{
         for (idx,s) in samples.iter().enumerate() {
             let raw = match s.load_image() {
                 Ok(m) => m, 
-                Err(e) => {
+                Err(_e) => {
                     let st = stats.entry((s.sub, *label)).or_default();
                     st.n += 1; 
                     st.err += 1;

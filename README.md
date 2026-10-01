@@ -36,9 +36,9 @@ References Benchmark : https://www.dynamsoft.com/codepool/barcode-scanning-accur
 **Result so far:**
 | sub-dataset | combo | n | reading_rate | precision | err% | p50 (ms) | p95 (ms) |
 |---|---|---:|---:|---:|---:|---:|---:|
-| muenster | gray+localize+rxing | 215 | 88.53% | 94.40% | 0.0% | 213.30 | 539.27 |
-| muenster | gray+localize_otsu+rxing | 215 | 87.96% | 94.16% | 0.0% | 216.0 | 554.90 |
-| muenster | raw+localize+rxing | 215 | 88.34% | 94.77% | 0.0% | 220.71 | 517.58 |
+| muenster | gray+localize+rxing | 1055 | 88.25% | 94.74% | 0.0% | 195.78 | 462.09 |
+| muenster | gray+localize_otsu+rxing | 1055 | 87.87% | 94.33% | 0.0% | 194.71 | 500.92 |
+| muenster | raw+localize+rxing | 1055 | 88.06% | 95.12% | 0.0% | 195.77 | 452.23 |
 
 ### Comparison against the published benchmark (same dataset)
  
@@ -48,16 +48,16 @@ References Benchmark : https://www.dynamsoft.com/codepool/barcode-scanning-accur
 | Scandit | 93.26% | 100% |
 | **ZXing-CPP** | **75.14%** | **99.87%** |
 | pyZbar | 70.59% | 95.63% |
-| **gray+localize+rxing** | **88.53%** | **94.40%** | 
+| **gray+localize+rxing** | **88.25%** | **94.74%** | 
 
 ## Dataset : 	DEAL Lab Barcode Dataset 
 
 **Result so far:**
 | sub-dataset | combo | n | reading_rate | precision | err% | p50 (ms) | p95 (ms) |
 |---|---|---:|---:|---:|---:|---:|---:|
-| muenster | gray+localize+rxing | 215 | 75.55% | 91.40% | 0.0% | 186.32 | 2119.95 |
-| muenster | gray+localize_otsu+rxing | 215 | 72.65% | 89.36% | 0.0% | 226.92 | 2383.90 |
-| muenster | raw+localize+rxing | 215 | 75.45% | 91.39% | 0.0% | 182.52 | 2139.36 |
+| muenster | gray+localize+rxing | 2000 | 75.55% | 91.40% | 0.0% | 186.32 | 2119.95 |
+| muenster | gray+localize_otsu+rxing | 2000 | 72.65% | 89.36% | 0.0% | 226.92 | 2383.90 |
+| muenster | raw+localize+rxing | 2000 | 75.45% | 91.39% | 0.0% | 182.52 | 2139.36 |
 
 ### Comparison against the published benchmark (same dataset)
  

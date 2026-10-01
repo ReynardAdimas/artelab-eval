@@ -14,7 +14,10 @@ pub struct LocalizedRxingDetector {
     inner: RxingDetector, 
     upscale: f64, 
     margin_ratio: f64, 
-    local_otsu: bool
+    local_otsu: bool, 
+    debug_dir: Option<std::path::PathBuf>, 
+    debug_label: Option<String>,
+    debug_counter: u64
 } 
 
 impl LocalizedRxingDetector {
@@ -24,7 +27,10 @@ impl LocalizedRxingDetector {
             inner: RxingDetector::new(), 
             upscale, 
             margin_ratio, 
-            local_otsu
+            local_otsu, 
+            debug_dir: None, 
+            debug_counter: 0, 
+            debug_label: None
         })
     } 
 
@@ -75,6 +81,18 @@ impl LocalizedRxingDetector {
         imgproc::threshold(&gray, &mut bin, 0.0, 255.0, imgproc::THRESH_BINARY | imgproc::THRESH_OTSU).map_err(cv_err)?;
         Ok(bin)
     }
+
+    pub fn with_debug_dir(mut self, dir: impl Into<std::path::PathBuf>) -> Self {
+        let dir = dir.into(); 
+        std::fs::create_dir_all(&dir).ok();
+        self.debug_dir = Some(dir);
+        self
+    }
+
+    pub fn set_debug_label(&mut self, label: impl Into<String>) {
+        self.debug_label = Some(label.into()); 
+        self.debug_counter = 0;
+    }
 } 
 
 impl BarcodeDetector for LocalizedRxingDetector {
@@ -86,7 +104,6 @@ impl BarcodeDetector for LocalizedRxingDetector {
         } 
 
         let pts: Vec<Point2f> = points.to_vec();
-        let mut out = Vec::new(); 
         for quad in pts.chunks(4) {
             if quad.len() != 4 {
                 continue;
@@ -96,13 +113,20 @@ impl BarcodeDetector for LocalizedRxingDetector {
                 Ok(c) => c, 
                 Err(_) => continue,
             };
-            let crop = self.local_otsu_gate(&crop)?;
-            out.extend(self.inner.detect(&crop)?);
-        }
+            let crop = self.local_otsu_gate(&crop)?; 
+            // Debug 
+            if let Some(dir) = &self.debug_dir {
+                self.debug_counter += 1;
+                let base = self.debug_label.clone().unwrap_or_else(|| "sample".to_string());
+                let path = dir.join(format!("{base}_cand{:02}.png", self.debug_counter));
+                opencv::imgcodecs::imwrite(path.to_str().unwrap(), &crop, &Vector::new()).map_err(cv_err)?;
+            }
 
-        if out.is_empty() {
-            return self.inner.detect(frame);
+            let out = self.inner.detect(&crop)?;
+            if !out.is_empty() {
+                return Ok(out);
+            }
         }
-        Ok(out)
+        self.inner.detect(frame)
     }
 }
