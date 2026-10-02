@@ -7,3 +7,4 @@ edition = "2024"
 opencv = { version = "0.100.1", default-features =  false, features = ["imgproc", "imgcodecs", "highgui", "videoio", "objdetect", "barcode", "wechat_qrcode"] }
 rxing = "0.9.3"
 barcode-scanner-rs = { path = "../barcode-scanner-rs" }
+
