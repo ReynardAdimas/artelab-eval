@@ -7,12 +7,10 @@ use std::{collections::BTreeMap, path::PathBuf, time::Instant};
 mod ground_truth;
 mod localized_rxing;
 mod localizer;
-mod soros;
 
 use ground_truth::{load_all, load_deal_kaist, load_muenster, SubDataset};
 use localized_rxing::LocalizedRxingDetector;
 use localizer::{Localizer, OpenCvLocalizer};
-use soros::{SorosConfig, SorosLocalizer};
 
 fn normalize(s: &str) -> String {
     s.chars().filter(|c| c.is_ascii_digit()).collect()
@@ -20,13 +18,13 @@ fn normalize(s: &str) -> String {
 
 enum LocalizerKind {
     OpenCv,
-    Soros(SorosConfig),
 }
 
 enum DecoderKind {
     LocalizedRxing {
         loc: LocalizerKind,
         local_otsu: bool,
+        red_fallback: bool,
     },
 }
 
@@ -74,22 +72,21 @@ fn matches(expected: &str, got: &str) -> bool {
     false
 }
 
-/// Mengembalikan tipe konkret (bukan Box<dyn>) agar crop_hits / fallback_hits bisa dibaca.
 fn build_decoder(kind: &DecoderKind) -> Result<LocalizedRxingDetector, String> {
     match kind {
-        DecoderKind::LocalizedRxing { loc, local_otsu } => {
+        DecoderKind::LocalizedRxing { loc, local_otsu, red_fallback } => {
             let localizer: Box<dyn Localizer> = match loc {
                 LocalizerKind::OpenCv => Box::new(OpenCvLocalizer::new()?),
-                LocalizerKind::Soros(cfg) => Box::new(SorosLocalizer::new(cfg.clone())),
             };
             LocalizedRxingDetector::new(localizer, 2.0, 0.15, *local_otsu)
+                .map(|d| d.with_red_fallback(*red_fallback))
         }
     }
 }
 
-///   cargo run --release -- <data_root> [dataset] [filter]
+///   cargo run --release -- <data_root> [dataset] 
 ///   dataset : deal (default) | artelab | muenster
-///   filter  : soros
+
 fn main() -> Result<(), String> {
     let args: Vec<String> = std::env::args().collect();
     let data_root = PathBuf::from(args.get(1).map(String::as_str).unwrap_or("data"));
@@ -113,48 +110,37 @@ fn main() -> Result<(), String> {
     };
 
     let all_combos: Vec<(&str, PreprocessKind, DecoderKind)> = vec![
-        // baseline: localizer bawaan OpenCV
+        // baseline: localizer OpenCV
         (
             "raw+localize+rxing",
             PreprocessKind::Raw,
-            DecoderKind::LocalizedRxing { loc: LocalizerKind::OpenCv, local_otsu: false },
+            DecoderKind::LocalizedRxing { loc: LocalizerKind::OpenCv, local_otsu: false, red_fallback: false },
+        ),
+        // baseline + fallback channel red
+        (
+            "raw+localize+rxing+red",
+            PreprocessKind::Raw,
+            DecoderKind::LocalizedRxing { loc: LocalizerKind::OpenCv, local_otsu: false, red_fallback: true },
         ),
         (
             "gray+localize+rxing",
             PreprocessKind::Gray,
-            DecoderKind::LocalizedRxing { loc: LocalizerKind::OpenCv, local_otsu: false },
+            DecoderKind::LocalizedRxing { loc: LocalizerKind::OpenCv, local_otsu: false, red_fallback: false },
+        ),
+        (
+            "gray+localize+rxing+red", 
+            PreprocessKind::Gray, 
+            DecoderKind::LocalizedRxing { loc: LocalizerKind::OpenCv, local_otsu: false, red_fallback: true }
         ),
         (
             "gray+localize_otsu+rxing",
             PreprocessKind::Gray,
-            DecoderKind::LocalizedRxing { loc: LocalizerKind::OpenCv, local_otsu: true },
+            DecoderKind::LocalizedRxing { loc: LocalizerKind::OpenCv, local_otsu: true, red_fallback: false },
         ),
-        // Sörös & Flörkemeier (MUM'13)
         (
-            "raw+soros+rxing",
-            PreprocessKind::Raw,
-            DecoderKind::LocalizedRxing {
-                loc: LocalizerKind::Soros(SorosConfig::default()),
-                local_otsu: false,
-            },
-        ),
-        // ablasi: tanpa filter saturasi HSV
-        (
-            "raw+soros_nohsv+rxing",
-            PreprocessKind::Raw,
-            DecoderKind::LocalizedRxing {
-                loc: LocalizerKind::Soros(SorosConfig { sat_max: 1.0, ..Default::default() }),
-                local_otsu: false,
-            },
-        ),
-        // ablasi: threshold lebih ketat
-        (
-            "raw+soros_thr05+rxing",
-            PreprocessKind::Raw,
-            DecoderKind::LocalizedRxing {
-                loc: LocalizerKind::Soros(SorosConfig { thr_ratio: 0.5, ..Default::default() }),
-                local_otsu: false,
-            },
+            "gray+localize_otsu+rxing+red",
+            PreprocessKind::Gray,
+            DecoderKind::LocalizedRxing { loc: LocalizerKind::OpenCv, local_otsu: true, red_fallback: true },
         ),
     ];
 
@@ -162,12 +148,10 @@ fn main() -> Result<(), String> {
         .into_iter()
         .filter(|(label, _, _)| filter.map_or(true, |f| label.contains(f)))
         .collect();
-    if combos.is_empty() {
-        return Err(format!("Tidak ada combo yang cocok dengan filter {filter:?}"));
-    }
+    
 
     let mut stats: BTreeMap<(SubDataset, &str), Stat> = BTreeMap::new();
-    let mut hits: Vec<(&str, u64, u64)> = Vec::new();
+    let mut hits: Vec<(&str, u64, u64, u64, u64)> = Vec::new();
 
     for (label, kind, decoder_kind) in &combos {
         let mut pre = Preprocessor::new(*kind)?;
@@ -229,7 +213,13 @@ fn main() -> Result<(), String> {
             }
         }
 
-        hits.push((*label, decoder.crop_hits, decoder.fallback_hits));
+        hits.push((
+            *label,
+            decoder.crop_hits,
+            decoder.fallback_hits,
+            decoder.red_crop_hits,
+            decoder.red_full_hits,
+        ));
     }
 
     println!(
@@ -252,9 +242,15 @@ fn main() -> Result<(), String> {
         );
     }
 
-    println!("\n{:<26} {:>10} {:>14}", "combo", "crop_hits", "fallback_hits");
-    for (label, crop, fallback) in &hits {
-        println!("{:<26} {:>10} {:>14}", label, crop, fallback);
+    println!(
+        "\n{:<26} {:>10} {:>14} {:>14} {:>14}",
+        "combo", "crop_hits", "fallback_hits", "red_crop_hits", "red_full_hits"
+    );
+    for (label, crop, fallback, red_crop, red_full) in &hits {
+        println!(
+            "{:<26} {:>10} {:>14} {:>14} {:>14}",
+            label, crop, fallback, red_crop, red_full
+        );
     }
 
     Ok(())

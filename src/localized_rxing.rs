@@ -15,13 +15,19 @@ pub struct LocalizedRxingDetector {
     upscale: f64,
     margin_ratio: f64,
     local_otsu: bool,
+    red_fallback: bool,
     debug_dir: Option<std::path::PathBuf>,
     debug_label: Option<String>,
     debug_counter: u64,
-    /// Decode berhasil dari crop hasil localizer.
     pub crop_hits: u64,
-    /// Localizer tidak menemukan kandidat / semua crop gagal -> decode frame penuh.
     pub fallback_hits: u64,
+    pub red_crop_hits: u64,
+    pub red_full_hits: u64,
+}
+
+enum Src {
+    Crop,
+    Full,
 }
 
 impl LocalizedRxingDetector {
@@ -37,15 +43,61 @@ impl LocalizedRxingDetector {
             upscale,
             margin_ratio,
             local_otsu,
+            red_fallback: false,
             debug_dir: None,
             debug_label: None,
             debug_counter: 0,
             crop_hits: 0,
             fallback_hits: 0,
+            red_crop_hits: 0,
+            red_full_hits: 0,
         })
     }
 
-    /// quad harus berurutan [kiri-bawah, kiri-atas, kanan-atas, kanan-bawah].
+    pub fn with_red_fallback(mut self, on: bool) -> Self {
+        self.red_fallback = on;
+        self
+    }
+    fn red_channel(frame: &Mat) -> Result<Option<Mat>, String> {
+        if frame.channels() != 3 {
+            return Ok(None);
+        }
+        let mut red = Mat::default();
+        core::extract_channel(frame, &mut red, 2).map_err(cv_err)?;
+        Ok(Some(red))
+    }
+    fn pass(
+        &mut self,
+        img: &Mat,
+        quads: &[[Point2f; 4]],
+        tag: &str,
+    ) -> Result<(Vec<DecodedBarcode>, Src), String> {
+        for q in quads {
+            let crop = match self.crop_and_deskew(img, q) {
+                Ok(c) => c,
+                Err(_) => continue,
+            };
+            let crop = self.local_otsu_gate(&crop)?;
+
+            if let Some(dir) = &self.debug_dir {
+                self.debug_counter += 1;
+                let base = self
+                    .debug_label
+                    .clone()
+                    .unwrap_or_else(|| "sample".to_string());
+                let path = dir.join(format!("{base}_{tag}cand{:02}.png", self.debug_counter));
+                opencv::imgcodecs::imwrite(path.to_str().unwrap(), &crop, &Vector::new())
+                    .map_err(cv_err)?;
+            }
+
+            let out = self.inner.detect(&crop)?;
+            if !out.is_empty() {
+                return Ok((out, Src::Crop));
+            }
+        }
+        Ok((self.inner.detect(img)?, Src::Full))
+    }
+
     pub fn crop_and_deskew(&self, img: &Mat, quad: &[Point2f; 4]) -> Result<Mat, String> {
         let w = (((quad[2].x - quad[1].x).powi(2) + (quad[2].y - quad[1].y).powi(2)) as f64).sqrt();
         let h = (((quad[1].x - quad[0].x).powi(2) + (quad[1].y - quad[0].y).powi(2)) as f64).sqrt();
@@ -57,7 +109,6 @@ impl LocalizedRxingDetector {
         let mh = h * self.margin_ratio;
         let s = self.upscale;
         let dst_w = ((w + 2.0 * mw) * s).round().max(1.0) as i32;
-        // FIX: sebelumnya memakai 2.0 * mw sehingga margin bawah lebih besar dari margin atas
         let dst_h = ((h + 2.0 * mh) * s).round().max(1.0) as i32;
 
         let src: Vector<Point2f> = Vector::from_slice(quad);
@@ -126,38 +177,26 @@ impl LocalizedRxingDetector {
 impl BarcodeDetector for LocalizedRxingDetector {
     fn detect(&mut self, frame: &Mat) -> Result<Vec<DecodedBarcode>, String> {
         let quads = self.localizer.locate(frame)?;
-        if quads.is_empty() {
-            self.fallback_hits += 1;
-            return self.inner.detect(frame);
+
+        let (out, src) = self.pass(frame, &quads, "")?;
+        match src {
+            Src::Crop => self.crop_hits += 1,
+            Src::Full => self.fallback_hits += 1,
+        }
+        if !out.is_empty() || !self.red_fallback {
+            return Ok(out);
         }
 
-        for q in quads {
-            let crop = match self.crop_and_deskew(frame, &q) {
-                Ok(c) => c,
-                Err(_) => continue,
-            };
-            let crop = self.local_otsu_gate(&crop)?;
-
-            // Debug
-            if let Some(dir) = &self.debug_dir {
-                self.debug_counter += 1;
-                let base = self
-                    .debug_label
-                    .clone()
-                    .unwrap_or_else(|| "sample".to_string());
-                let path = dir.join(format!("{base}_cand{:02}.png", self.debug_counter));
-                opencv::imgcodecs::imwrite(path.to_str().unwrap(), &crop, &Vector::new())
-                    .map_err(cv_err)?;
-            }
-
-            let out = self.inner.detect(&crop)?;
+        if let Some(red) = Self::red_channel(frame)? {
+            let (out, src) = self.pass(&red, &quads, "red_")?;
             if !out.is_empty() {
-                self.crop_hits += 1;
+                match src {
+                    Src::Crop => self.red_crop_hits += 1,
+                    Src::Full => self.red_full_hits += 1,
+                }
                 return Ok(out);
             }
         }
-
-        self.fallback_hits += 1;
-        self.inner.detect(frame)
+        Ok(vec![])
     }
 }
