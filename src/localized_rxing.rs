@@ -46,7 +46,7 @@ impl LocalizedRxingDetector {
     }
 
     /// quad harus berurutan [kiri-bawah, kiri-atas, kanan-atas, kanan-bawah].
-    fn crop_and_deskew(&self, img: &Mat, quad: &[Point2f; 4]) -> Result<Mat, String> {
+    pub fn crop_and_deskew(&self, img: &Mat, quad: &[Point2f; 4]) -> Result<Mat, String> {
         let w = (((quad[2].x - quad[1].x).powi(2) + (quad[2].y - quad[1].y).powi(2)) as f64).sqrt();
         let h = (((quad[1].x - quad[0].x).powi(2) + (quad[1].y - quad[0].y).powi(2)) as f64).sqrt();
         if w < 1.0 || h < 1.0 {
