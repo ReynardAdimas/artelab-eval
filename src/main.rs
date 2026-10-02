@@ -74,7 +74,7 @@ fn build_decoder(kind: &DecoderKind) -> Result<Box<dyn BarcodeDetector>, String>
 
 fn main() -> Result<(), String>{
     let data_root = PathBuf::from(std::env::args().nth(1).unwrap_or_else(|| "data".to_string())); 
-    let samples = load_deal_kaist(&data_root)?; 
+    let samples = load_all(&data_root)?; 
 
     let combos: Vec<(&str, PreprocessKind, DecoderKind)> = vec![
         ("raw+localize+rxing", PreprocessKind::Raw, DecoderKind::LocalizedRxing { local_otsu: false }),
@@ -83,11 +83,13 @@ fn main() -> Result<(), String>{
     ]; 
 
     let mut stats: BTreeMap<(SubDataset, &str), Stat> = BTreeMap::new(); 
+    let mut failures: Vec<String> = Vec::new();
 
     for (label, kind, decoder_kind) in &combos {
         let mut pre = Preprocessor::new(*kind)?;
         let mut decoder  = build_decoder(decoder_kind)?;
         let total  = samples.len();
+
 
 
         for (idx,s) in samples.iter().enumerate() {
@@ -117,11 +119,14 @@ fn main() -> Result<(), String>{
                 Ok(r) if r.iter().any(|d| matches(&s.expected, &d.data)) => "OK".to_string(),
                 Ok(_) => "WRONG".to_string()   
             }; 
-            eprintln!(
-                "[{label}] [{}] {}/{total} {} -> {status} ({dt:.1} ms)", 
-                s.sub.label(), idx + 1, s.file
-            );
-
+            if status != "OK" {
+                let got = match &res {
+                    Ok(r) => r.iter().map(|d| d.data.as_str()).collect::<Vec<_>>().join("|"),
+                    Err(e) => e.clone(),
+                };
+                eprintln!("[{label}] [{}] {}/{total} {} -> {status} expected={} got={got} ({dt:.1} ms)", s.sub.label(), idx + 1, s.file, s.expected);
+                failures.push(format!( "{label}\t{}\t{}\t{status}\t{}\t{got}\t{dt:.1}", s.sub.label(), s.file, s.expected));
+            }
             match res {
                 Err(_) => st.err += 1, 
                 Ok(r) => {
@@ -158,6 +163,10 @@ fn main() -> Result<(), String>{
             percentile(&st.ms, 0.5), percentile(&st.ms, 0.95),
         );
     }
+
+    let mut out = String::from("combo\tsub\tfile\tstatus\texpected\tgot\tms\n");
+    out.push_str(&failures.join("\n"));
+    std::fs::write("failures.tsv", out).map_err(|e| e.to_string())?;
 
     Ok(())
 }
