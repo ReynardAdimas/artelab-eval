@@ -105,7 +105,6 @@ fn main() -> Result<(), String> {
             Box::new(OpenCvLocalizer::new()?),
             2.0,
             m,
-            false,
         )?);
     } 
 
