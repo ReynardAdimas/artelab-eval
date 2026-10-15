@@ -6,4 +6,6 @@ edition = "2024"
 [dependencies]
 opencv = { version = "0.100.1", default-features =  false, features = ["imgproc", "imgcodecs", "highgui", "videoio", "objdetect", "barcode", "wechat_qrcode"] }
 rxing = "0.9.3"
+ort = { version = "=2.0.0-rc.14", features = ["tls-rustls"] }
+ndarray = "0.17.2"
 barcode-scanner-rs = { path = "../barcode-scanner-rs" }

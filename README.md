@@ -29,4 +29,7 @@ Dataset : 	Artelab Medium Barcode 1D Collection
 | Scandit | 91.63% | 79.07% |
 | **ZXing-CPP** | **82.36%** | **10.23%** |
 | pyZbar | 89.77% | 13.95% |
-| **`gray+rxing` (this project)** | **86.05%** | **11.16%** |
+| **`gray+rxing` (this project)** | **86.05%** | **11.16%** | 
+
+
+
